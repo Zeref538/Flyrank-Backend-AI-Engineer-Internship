@@ -177,8 +177,7 @@ SELECT COUNT(*) FROM tasks;           -- how many rows
 | A2 | `tasks.db` | SQLite, a file on your disk |
 | A3 | rows in `tasks` | Postgres, a database server in a container |
 
-> **The Postgres code is verified. The Docker part is not.** Two different
-> claims, so here they are separately.
+> **Verified in two steps**, because they are two different claims.
 >
 > **Verified, 20 Sep 2026:** every function in `db_postgres.py` ran against a
 > real PostgreSQL 17 server, and the full CRUD went through the API with the
@@ -187,13 +186,10 @@ SELECT COUNT(*) FROM tasks;           -- how many rows
 > Python process** read back a row the first one wrote, which is the persistence
 > claim actually being made.
 >
-> **Not verified:** `docker compose up` has never run here, because Docker is not
-> installed. The container networking, the healthcheck and the named volume are
-> written and unproven.
->
-> The Postgres server used was a Supabase project, which is plain Postgres 17 —
-> the same thing the compose file would start in a container. That tests the code
-> that could be wrong; it does not test the container wiring.
+> **Verified, 6 Oct 2026:** the container wiring. `verify-docker.ps1` passed all
+> 12 checkpoints on Docker Desktop 4.94.0 (WSL 2): the healthcheck, full CRUD
+> through the container, and a task that survived `docker compose down` then `up`
+> because the named volume kept it.
 
 ```bash
 cp .env.example .env
@@ -201,7 +197,7 @@ docker compose up
 curl -i http://localhost:3000/tasks
 ```
 
-**Every checkpoint in the brief, in one command**, once Docker is installed:
+**Every checkpoint in the brief, in one command:**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\verify-docker.ps1
@@ -214,9 +210,27 @@ cycle with the expected status codes, restarts the whole stack with
 It runs under its own compose project name, `a3check`, so it has its own volume:
 it never touches your data, and it deletes only its own volume at the end.
 
-Its HTTP checks are tested without Docker (`-ApiOnly` against a running API:
-8 of 8 pass) and against the wrong server (7 fail, as they should). The Docker
-half has not run, for the reason above.
+The psql output from the run, saved by the script
+([docs/psql-session.txt](docs/psql-session.txt)):
+
+```
+ Schema | Name  | Type  |  Owner
+--------+-------+-------+----------
+ public | tasks | table | postgres
+
+ id |           title           | done
+----+---------------------------+------
+  1 | Read the assignment brief | t
+  2 | Build the task API        | f
+  3 | Publish it to GitHub      | f
+  4 | Survive a restart         | t
+```
+
+The first real run found two bugs in the script itself. `--wait` only waits for
+healthchecks, and only the database has one, so the API counted as ready about
+0.6s before it answered: the script now polls `/health` first. And it now
+requires all 12 checks to print PASS, because one broken run skipped ten of them
+and still printed "every A3 checkpoint passed".
 
 **No credential is written in any committed file.** `compose.yaml` reads
 `${POSTGRES_PASSWORD}` from `.env` and refuses to start without it, and

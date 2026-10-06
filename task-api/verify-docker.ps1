@@ -15,13 +15,17 @@ param(
     [string]$BaseUrl = "http://localhost:3000"
 )
 
-$ErrorActionPreference = "Stop"
+# Not "Stop": docker prints progress on stderr, and when anything captures the
+# output, PowerShell 5.1 turns those lines into fatal errors. Each docker step
+# is judged by its exit code instead.
+$ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 $script:failed = 0
+$script:passed = 0
 $project = "a3check"
 
 function Check([string]$name, [bool]$ok, [string]$detail = "") {
-    if ($ok) { Write-Host "PASS  $name" -ForegroundColor Green }
+    if ($ok) { Write-Host "PASS  $name" -ForegroundColor Green; $script:passed++ }
     else { Write-Host "FAIL  $name  $detail" -ForegroundColor Red; $script:failed++ }
 }
 
@@ -39,6 +43,15 @@ function Call([string]$method, [string]$path, [string]$json = $null) {
     $body = $null
     if ($text) { try { $body = $text | ConvertFrom-Json } catch { $body = $text } }
     return @{ code = [int]$res.StatusCode; body = $body; text = $text }
+}
+
+# --wait only waits for healthchecks, and only db has one: the api container
+# counts as ready the moment it starts, ~0.6s before uvicorn accepts requests.
+function Wait-Api {
+    for ($i = 0; $i -lt 60; $i++) {
+        try { if ((Call GET "/health").code -eq 200) { return } } catch {}
+        Start-Sleep -Milliseconds 500
+    }
 }
 
 function Test-Api {
@@ -96,11 +109,13 @@ try {
     # --wait returns only once the healthchecks pass: the db answers pg_isready
     docker compose -p $project up -d --build --wait
     Check "docker compose up starts api and db, healthy" ($LASTEXITCODE -eq 0)
+    Wait-Api
     $id = Test-Api
 
     Write-Host "      restarting the whole stack: down, then up"
     docker compose -p $project down
     docker compose -p $project up -d --wait
+    Wait-Api
     $after = Call GET "/tasks/$id"
     Check "task $id survived docker compose down + up (the volume kept it)" ($after.code -eq 200 -and $after.body.title -eq "Survive a restart") "got $($after.code) $($after.text)"
 
@@ -115,5 +130,7 @@ finally {
     docker compose -p $project down -v *> $null
 }
 
+# A check that never ran is not a pass: all 12 must have printed PASS.
+if ($script:passed -lt 12) { Write-Host "`nonly $script:passed of 12 checks ran and passed" -ForegroundColor Red; exit 1 }
 if ($script:failed) { Write-Host "`n$script:failed check(s) failed" -ForegroundColor Red; exit 1 }
 Write-Host "`nevery A3 checkpoint passed" -ForegroundColor Green

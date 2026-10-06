@@ -15,6 +15,10 @@ if not os.environ.get("DATABASE_URL"):
 
 import db_postgres as db
 
+# Tests run in alphabetical order, so test_an_id... comes before the seed test.
+# Create the table first, as main.py does at startup, or a fresh database fails.
+db.init()
+
 
 def test_seed_runs_once():
     db.init()

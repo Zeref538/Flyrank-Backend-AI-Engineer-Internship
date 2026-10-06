@@ -1,0 +1,14 @@
+﻿         List of relations
+ Schema | Name  | Type  |  Owner   
+--------+-------+-------+----------
+ public | tasks | table | postgres
+(1 row)
+
+ id |           title           | done 
+----+---------------------------+------
+  1 | Read the assignment brief | t
+  2 | Build the task API        | f
+  3 | Publish it to GitHub      | f
+  4 | Survive a restart         | t
+(4 rows)
+

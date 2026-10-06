@@ -27,7 +27,7 @@ Both
 
 ## Zeref Tasks
 
-- [ ] Install WSL (admin terminal + reboot), then Docker Desktop, then run `task-api/verify-docker.ps1`
+- [x] Install WSL, then Docker Desktop, then run `task-api/verify-docker.ps1` (12/12 passed, 6 Oct 2026)
 - [ ] Paste the full briefs for the two capstones picked: Image Relevance & Auto-Tagging, LLM Usage Metering & Billing Service
 
 ## In Progress

@@ -23,7 +23,7 @@ BE-04 / A3, Containerize your stack (`task-api`)
 - [x] One script that runs every A3 checkpoint once Docker exists (`verify-docker.ps1`)
 
 Both
-- [ ] Push, and check the remote matches
+- [x] Push, and check the remote matches
 
 ## Zeref Tasks
 

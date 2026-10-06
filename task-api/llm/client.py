@@ -129,7 +129,7 @@ def complete(messages: list[dict]) -> tuple[str, dict]:
             status = _status_of(exc)
             is_timeout = "timeout" in type(exc).__name__.lower()
             if is_timeout and attempt == MAX_RETRIES:
-                raise LLMTimeout(f"Model did not answer within {TIMEOUT:.0f}s") from exc
+                raise LLMTimeout(f"Model did not answer within {TIMEOUT:g}s") from exc
             # A 401 will be a 401 on the third try too, and on OpenRouter's free
             # tier every failed call still costs one of the day's 50.
             if status in NEVER_RETRY:

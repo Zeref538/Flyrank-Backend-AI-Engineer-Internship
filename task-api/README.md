@@ -226,6 +226,10 @@ The psql output from the run, saved by the script
   4 | Survive a restart         | t
 ```
 
+The same query run by hand against my own stack, after a full `docker compose down` and `up`:
+
+![psql in the db container listing the tasks table and its three rows](docs/psql-screenshot.png)
+
 The first real run found two bugs in the script itself. `--wait` only waits for
 healthchecks, and only the database has one, so the API counted as ready about
 0.6s before it answered: the script now polls `/health` first. And it now

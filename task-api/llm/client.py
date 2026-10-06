@@ -13,6 +13,7 @@ import os
 import random
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -73,6 +74,28 @@ def _status_of(exc) -> int | None:
         getattr(exc, "response", None), "status_code", None)
 
 
+def retry_after_seconds(exc) -> float | None:
+    """The server's own 'wait this long' instruction, if it sent one.
+
+    Retry-After comes in two shapes: a number of seconds ("20") or an HTTP date
+    ("Wed, 21 Oct 2026 07:28:00 GMT"). Handling only the number is a real bug.
+    The headers are an httpx.Headers object, not a dict, so ask with .get().
+    """
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    value = headers.get("retry-after") if headers is not None else None
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+
+
 def complete(messages: list[dict]) -> tuple[str, dict]:
     """Send messages, return (reply text, usage). Retries only what is worth retrying."""
     import openai
@@ -84,11 +107,18 @@ def complete(messages: list[dict]) -> tuple[str, dict]:
         max_retries=0,  # the SDK retries twice by default; this file decides instead
     )
     model = os.environ.get("LLM_MODEL", "openrouter/free")
+    # Reasoning models (qwen3.5 on Ollama) think before answering. For a four-field
+    # label that costs ~7s and ~100 tokens per call for no better answer, so
+    # LLM_REASONING_EFFORT=none switches it off. Unset = send nothing, because not
+    # every provider accepts the field.
+    effort = os.environ.get("LLM_REASONING_EFFORT")
+    extra = {"reasoning_effort": effort} if effort else None
 
     for attempt in range(MAX_RETRIES + 1):
         try:
             res = client.chat.completions.create(
-                model=model, messages=messages, temperature=0, timeout=TIMEOUT)
+                model=model, messages=messages, temperature=0, timeout=TIMEOUT,
+                extra_body=extra)
             usage = getattr(res, "usage", None)
             return res.choices[0].message.content or "", {
                 "model": model,
@@ -111,11 +141,8 @@ def complete(messages: list[dict]) -> tuple[str, dict]:
             # Exponential backoff with jitter: 1s, 2s, plus a random fraction so a
             # hundred clients that failed together don't all come back together.
             wait = (2 ** attempt) + random.random()
-            retry_after = getattr(getattr(exc, "response", None), "headers", {})
-            if isinstance(retry_after, dict) and retry_after.get("retry-after"):
-                try:
-                    wait = max(wait, float(retry_after["retry-after"]))
-                except ValueError:
-                    pass
+            told = retry_after_seconds(exc)
+            if told is not None:
+                wait = told  # the server knows its own limits better than our guess
             time.sleep(wait)
     raise LLMError("unreachable")

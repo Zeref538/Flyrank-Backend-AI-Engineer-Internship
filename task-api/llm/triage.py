@@ -79,7 +79,10 @@ def classify(text: str) -> tuple[Triage, dict]:
                 f"Your previous answer was rejected for this reason: {error}. "
                 "Return only corrected JSON matching the schema."},
         ]
-        raw2, usage = client.complete(messages)
+        raw2, usage2 = client.complete(messages)
+        # The repair is a second paid call: add its tokens, don't replace them.
+        usage = {**usage2, **{k: (usage.get(k) or 0) + (usage2.get(k) or 0)
+                              for k in ("input_tokens", "output_tokens")}}
         result, error = parse(raw2)
         if result is None:
             client.quarantine(input=text, first_output=raw, second_output=raw2, error=error)

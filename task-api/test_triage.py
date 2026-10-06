@@ -188,6 +188,37 @@ def test_the_parser_rejects_extra_fields():
     assert result is None and "secret" in error, error
 
 
+
+def test_retry_after_is_read_in_both_its_shapes():
+    # The OpenAI client hands back httpx.Headers, not a dict. The first version
+    # of this code checked isinstance(..., dict), so it never obeyed the server.
+    from datetime import datetime, timedelta, timezone
+    from email.utils import format_datetime
+    from types import SimpleNamespace
+
+    import httpx
+
+    def exc(value):
+        h = httpx.Headers({"retry-after": value} if value is not None else {})
+        return SimpleNamespace(response=SimpleNamespace(headers=h))
+
+    assert llm_client.retry_after_seconds(exc("7")) == 7.0
+    later = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=30), usegmt=True)
+    assert 25 <= llm_client.retry_after_seconds(exc(later)) <= 31
+    assert llm_client.retry_after_seconds(exc("soon-ish")) is None
+    assert llm_client.retry_after_seconds(exc(None)) is None
+
+
+def test_a_repaired_answer_logs_the_tokens_of_both_calls():
+    # The repair is a second paid call. Logging only its tokens halved the cost.
+    live([BAD_ENUM, GOOD])
+    try:
+        result, line = triage_mod.classify("The app crashes on save")
+        assert result.category == "bug" and line["repairs"] == 1
+        assert line["input_tokens"] == 20 and line["output_tokens"] == 10, line
+    finally:
+        restore()
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

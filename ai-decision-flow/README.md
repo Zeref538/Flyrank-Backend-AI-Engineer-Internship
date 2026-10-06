@@ -5,7 +5,11 @@ put to a language model**. The answer picks which arrow the run follows. Drag ou
 a support triage tree, type in a customer message, press **Run flow**, and watch
 it light up box by box.
 
-Execution runs on **Inngest**, one step per node. The canvas is **React Flow**.
+Execution runs on **Inngest**, one step per node. The canvas is **React Flow**,
+and the side panel is built from **shadcn/ui** components.
+
+Verified on 6 Oct 2026 against a real model running on my laptop:
+**qwen3.5:4b on Ollama**. No account, no key, no cost.
 
 ![The editor after a completed run](docs/run-refund.png)
 
@@ -16,7 +20,7 @@ line is the path actually taken. The panel on the right is the execution log.
 
 ```bash
 npm install
-cp .env.example .env.local        # LLM_STUB=1 means no key and no spending
+cp .env.example .env.local        # LLM_STUB=1 runs with no model installed
 
 # Terminal 1
 npm run dev
@@ -42,17 +46,30 @@ function list stays empty for no visible reason.
 
 ## Using a real model
 
-Everything above runs on a stub. To use a real one, edit `.env.local`:
+`LLM_STUB=1` runs everything on keyword rules, so the app works with nothing
+installed. For a real model, put this in `.env.local` and restart `npm run dev`
+(Next.js reads env files only at startup):
 
 ```
 LLM_STUB=0
-LLM_API_KEY=your_key
-LLM_BASE_URL=https://api.groq.com/openai/v1
-LLM_MODEL=llama-3.1-8b-instant
+LLM_BASE_URL=http://localhost:11434/v1/
+LLM_API_KEY=ollama                 # ignored by Ollama, but the client needs something
+LLM_MODEL=qwen3.5:4b
+LLM_REASONING_EFFORT=none
 ```
 
-Groq speaks the OpenAI API, so the same SDK works against either — only the base
-URL changes. Nothing else in the code moves.
+Then `ollama pull qwen3.5:4b`. A hosted provider is the same three lines with a
+different URL, key and model name; the code does not change.
+
+**Trap: a thinking model with `max_tokens: 4` answers nothing.** qwen3.5 writes
+a hidden reasoning pass before its answer, and that pass spends the 4-token
+budget, so the visible reply comes back empty and every node fails.
+`LLM_REASONING_EFFORT=none` switches the thinking off. Leave that line out for a
+provider that rejects the field.
+
+The client also sets a **30-second timeout** (the OpenAI SDK default is ten
+minutes) and **zero SDK retries**, because Inngest already retries a failed step
+and the two would stack.
 
 ## Making a model answer only YES or NO
 
@@ -81,23 +98,32 @@ normalize("maybe")                             // null  -> the run fails, loudly
 
 ## What actually ran
 
-Same flow, three different messages, three different paths:
+Same flow, three messages, run through Inngest against the real model. I wrote
+down the path each one *should* take before running it, so this is a check,
+not a judgement made after seeing the answers. 3 of 3 matched:
 
 ```
 input   : My headphones arrived broken and I want a refund.
   Is this a support request?            -> YES
   Is the customer asking for a refund?  -> YES
-  outcome: Send to Refunds
+  outcome: Send to Refunds              (predicted: Refunds)
 
-input   : Can you tell me how much the enterprise plan costs?
-  Is this a support request?            -> NO
-  outcome: Send to Sales
-
-input   : The app keeps crashing when I open settings.
+input   : The app keeps crashing when I open settings, please help.
   Is this a support request?            -> YES
   Is the customer asking for a refund?  -> NO
-  outcome: Send to Support
+  outcome: Send to Support              (predicted: Support)
+
+input   : What does the enterprise plan cost for 50 seats?
+  Is this a support request?            -> NO
+  outcome: Send to Sales                (predicted: Sales)
 ```
+
+The model's raw replies were the bare words `YES` and `NO` every time, so the
+cleanup step had nothing to fix here. It stays, because the next model will not
+be so tidy. Each node took about a second; a whole run, one to two.
+
+Three runs is a smoke test, not an accuracy score. It shows the wiring and the
+branching are real, not that the model is right about every message.
 
 ![Inngest runs](docs/inngest-runs.png)
 
@@ -151,7 +177,8 @@ src/lib/graph.ts     start node, and where an answer leads -- plain functions
 src/lib/runs.ts      where runs live while they happen (a Map; a database is the upgrade)
 src/inngest/         the function that walks the graph, one step per node
 src/app/api/run/     POST to start (202), GET to poll
-src/app/page.tsx     the canvas
+src/app/page.tsx     the canvas, and the side panel
+src/components/ui/   shadcn/ui components: button, textarea, badge, card
 ```
 
 `graph.ts` is separate from the AI and from Inngest on purpose: it is plain

@@ -14,6 +14,10 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { sampleGraph } from "@/lib/sample";
 import type { Graph, Run } from "@/lib/types";
 
@@ -79,28 +83,6 @@ function nodeStyle(state: string, terminal: boolean) {
   };
 }
 
-function btn(bg?: string) {
-  return {
-    background: bg ?? "#1f2430",
-    color: "#e6e8ec",
-    border: "1px solid #2a2f3a",
-    borderRadius: 8,
-    padding: "7px 11px",
-    fontSize: 12,
-    cursor: "pointer",
-  } as const;
-}
-
-const boxStyle = {
-  width: "100%",
-  background: "#171a21",
-  color: "#e6e8ec",
-  border: "1px solid #2a2f3a",
-  borderRadius: 8,
-  padding: 8,
-  fontSize: 12,
-} as const;
-
 export default function Page() {
   const initial = toFlow(sampleGraph);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(initial.nodes);
@@ -111,6 +93,7 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [branch, setBranch] = useState<"YES" | "NO">("YES");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   // localStorage keeps your flow across a refresh. It is per-browser and never
   // reaches the server, which is fine for a draft and wrong for anything shared.
@@ -237,8 +220,8 @@ export default function Page() {
   const selectedNode = nodes.find((n) => n.id === selected);
 
   return (
-    <main style={{ display: "flex", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ flex: 1 }}>
+    <main className="flex h-screen">
+      <div className="flex-1">
         <ReactFlow
           nodes={styledNodes}
           edges={styledEdges}
@@ -247,6 +230,7 @@ export default function Page() {
           onConnect={onConnect}
           onNodeClick={(_, n) => setSelected(n.id)}
           fitView
+          colorMode="dark"
         >
           <Background />
           <Controls />
@@ -254,73 +238,68 @@ export default function Page() {
         </ReactFlow>
       </div>
 
-      <aside
-        style={{
-          width: 380,
-          borderLeft: "1px solid #2a2f3a",
-          padding: 16,
-          overflowY: "auto",
-          background: "#12151b",
-        }}
-      >
-        <h1 style={{ fontSize: 18, marginBottom: 4 }}>AI decision flow</h1>
-        <p style={{ color: "#9aa2b1", fontSize: 12, marginBottom: 16 }}>
-          Every node asks the model one question. The answer picks the edge.
-        </p>
-
-        <label style={{ fontSize: 12, color: "#9aa2b1" }}>Text to classify</label>
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          rows={3}
-          style={{ ...boxStyle, marginBottom: 10 }}
-        />
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-          <button onClick={start} style={btn("#2563eb")}>
-            Run flow
-          </button>
-          <button onClick={addNode} style={btn()}>
-            Add node
-          </button>
-          <button onClick={save} style={btn()}>
-            Save
-          </button>
-          <button onClick={exportJson} style={btn()}>
-            Export
-          </button>
-          <label style={{ ...btn(), cursor: "pointer" }}>
-            Import
-            <input
-              type="file"
-              accept="application/json"
-              style={{ display: "none" }}
-              onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])}
-            />
-          </label>
+      <aside className="w-[380px] shrink-0 space-y-5 overflow-y-auto border-l border-border bg-card/40 p-4">
+        <div>
+          <h1 className="font-heading text-lg font-semibold">AI decision flow</h1>
+          <p className="text-xs text-muted-foreground">
+            Every node asks the model one question. The answer picks the edge.
+          </p>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, color: "#9aa2b1" }}>New connections are the</label>
-          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+        <div className="space-y-2">
+          <label htmlFor="flow-input" className="text-xs text-muted-foreground">
+            Text to classify
+          </label>
+          <Textarea id="flow-input" value={input} onChange={(e) => setInput(e.target.value)} rows={3} />
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={start}>Run flow</Button>
+            <Button variant="outline" onClick={addNode}>
+              Add node
+            </Button>
+            <Button variant="outline" onClick={save}>
+              Save
+            </Button>
+            <Button variant="outline" onClick={exportJson}>
+              Export
+            </Button>
+            <Button variant="outline" onClick={() => fileRef.current?.click()}>
+              Import
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">New connections are the</p>
+          <div className="flex gap-2">
             {(["YES", "NO"] as const).map((b) => (
-              <button
+              <Button
                 key={b}
+                size="sm"
+                variant={branch === b ? "default" : "outline"}
+                aria-pressed={branch === b}
+                className={branch === b ? (b === "YES" ? "bg-lime-700 text-white" : "bg-red-700 text-white") : ""}
                 onClick={() => setBranch(b)}
-                style={btn(branch === b ? (b === "YES" ? "#4d7c0f" : "#b91c1c") : undefined)}
               >
                 {b} path
-              </button>
+              </Button>
             ))}
           </div>
         </div>
 
         {selectedNode ? (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, color: "#9aa2b1" }}>
+          <div className="space-y-2">
+            <label htmlFor="node-prompt" className="text-xs text-muted-foreground">
               Prompt for {selectedNode.id}
             </label>
-            <textarea
+            <Textarea
+              id="node-prompt"
               value={String(selectedNode.data?.prompt ?? "")}
               onChange={(e) =>
                 setNodes((ns) =>
@@ -330,47 +309,61 @@ export default function Page() {
                 )
               }
               rows={3}
-              style={boxStyle}
             />
           </div>
         ) : null}
 
         {error ? (
-          <div
-            style={{ background: "#7f1d1d", padding: 10, borderRadius: 8, fontSize: 12, marginBottom: 12 }}
-          >
-            {error}
-          </div>
+          <Card size="sm" className="border-destructive/50 bg-destructive/15">
+            <CardContent className="text-xs">{error}</CardContent>
+          </Card>
         ) : null}
 
-        <h2 style={{ fontSize: 13, color: "#9aa2b1", marginBottom: 6 }}>Execution log</h2>
-        {!run ? <p style={{ fontSize: 12, color: "#6b7280" }}>Nothing has run yet.</p> : null}
-        {run ? (
-          <div style={{ fontSize: 12 }}>
-            <div style={{ marginBottom: 8 }}>
-              <code>{run.id}</code> &mdash; <strong>{run.status}</strong>
-            </div>
-            <ol style={{ paddingLeft: 16 }}>
-              {run.steps.map((s, i) => (
-                <li key={i} style={{ marginBottom: 8 }}>
-                  <div>{s.prompt}</div>
-                  <div style={{ color: s.answer === "YES" ? "#84cc16" : "#f87171" }}>
-                    &rarr; {s.answer ?? "no answer"}
-                  </div>
-                  {s.error ? <div style={{ color: "#f87171" }}>{s.error}</div> : null}
-                </li>
-              ))}
-            </ol>
-            {run.outcome ? (
-              <div style={{ background: "#14532d", padding: 10, borderRadius: 8 }}>
-                Outcome: <strong>{run.outcome}</strong>
+        <div className="space-y-2">
+          <h2 className="text-xs font-medium text-muted-foreground">Execution log</h2>
+          {!run ? <p className="text-xs text-muted-foreground">Nothing has run yet.</p> : null}
+          {run ? (
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center gap-2">
+                <code className="text-muted-foreground">{run.id}</code>
+                <Badge
+                  variant={run.status === "failed" ? "destructive" : run.status === "done" ? "default" : "secondary"}
+                >
+                  {run.status}
+                </Badge>
               </div>
-            ) : null}
-            {run.error ? (
-              <div style={{ background: "#7f1d1d", padding: 10, borderRadius: 8 }}>{run.error}</div>
-            ) : null}
-          </div>
-        ) : null}
+              <ol className="space-y-2">
+                {run.steps.map((s, i) => (
+                  <li key={i} className="rounded-md border border-border p-2">
+                    <div>{s.prompt}</div>
+                    <Badge
+                      variant={s.answer ? "default" : "destructive"}
+                      className={
+                        "mt-1 " +
+                        (s.answer === "YES" ? "bg-lime-700 text-white" : s.answer === "NO" ? "bg-red-700 text-white" : "")
+                      }
+                    >
+                      {s.answer ?? "no answer"}
+                    </Badge>
+                    {s.error ? <div className="mt-1 text-destructive">{s.error}</div> : null}
+                  </li>
+                ))}
+              </ol>
+              {run.outcome ? (
+                <Card size="sm" className="border-lime-700/50 bg-lime-900/30">
+                  <CardContent>
+                    Outcome: <strong>{run.outcome}</strong>
+                  </CardContent>
+                </Card>
+              ) : null}
+              {run.error ? (
+                <Card size="sm" className="border-destructive/50 bg-destructive/15">
+                  <CardContent>{run.error}</CardContent>
+                </Card>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </aside>
     </main>
   );

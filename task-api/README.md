@@ -201,7 +201,35 @@ docker compose up
 curl -i http://localhost:3000/tasks
 ```
 
-**Or skip Docker entirely.** Anything that speaks Postgres works — point
+**Every checkpoint in the brief, in one command**, once Docker is installed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\verify-docker.ps1
+```
+
+It builds and starts the stack, waits for the healthcheck, runs the full CRUD
+cycle with the expected status codes, restarts the whole stack with
+`docker compose down` then `up` and checks a task survived, then saves the psql
+`\dt` and `SELECT` output to `docs/psql-session.txt` for the README screenshot.
+It runs under its own compose project name, `a3check`, so it has its own volume:
+it never touches your data, and it deletes only its own volume at the end.
+
+Its HTTP checks are tested without Docker (`-ApiOnly` against a running API:
+8 of 8 pass) and against the wrong server (7 fail, as they should). The Docker
+half has not run, for the reason above.
+
+**No credential is written in any committed file.** `compose.yaml` reads
+`${POSTGRES_PASSWORD}` from `.env` and refuses to start without it, and
+`.dockerignore` keeps `.env` out of the image: `COPY . .` would otherwise bake
+your real secrets into it for anyone who pulls it.
+
+**`/health` asks the database.** It runs `SELECT 1` and answers
+`{"status":"ok","db":"ok"}`, or **503** with `"db":"down"` when the database
+cannot answer. A load balancer calls this every few seconds and stops sending
+users to a server that fails it, so a health check that never asks the database
+would keep traffic flowing to a server whose every real request is about to fail.
+
+**Or skip Docker entirely.** Anything that speaks Postgres works: point
 `DATABASE_URL` at a hosted database and the same code runs:
 
 ```bash
@@ -212,8 +240,9 @@ That is how the Postgres path above was verified without a container. Being able
 to swap the server without touching a line of the app is the same property the
 whole assignment is about, one level up.
 
-**Only `db_postgres.py` and the infrastructure files are new.** `main.py` gained
-four lines, and they are a choice of import:
+**Only `db_postgres.py` and the infrastructure files are new.** The routes are
+untouched. `main.py` gained a `.env` loader, a `/health` that asks the database,
+and this choice of import:
 
 ```python
 if os.environ.get("DATABASE_URL"):

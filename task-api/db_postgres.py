@@ -30,6 +30,12 @@ def connect():
     return closing(psycopg.connect(DATABASE_URL, row_factory=dict_row))
 
 
+def ping():
+    """Ask the database one trivial question. Raises if it cannot answer."""
+    with connect() as con:
+        con.execute("SELECT 1")
+
+
 def init():
     with connect() as con, con:
         con.execute(

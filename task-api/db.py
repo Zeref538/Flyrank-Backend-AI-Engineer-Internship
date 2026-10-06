@@ -32,6 +32,12 @@ def connect():
         yield con
 
 
+def ping():
+    """Ask the database one trivial question. Raises if it cannot answer."""
+    with connect() as con:
+        con.execute("SELECT 1")
+
+
 def init():
     """Create the file and table if missing, and seed only an empty table."""
     with connect() as con:

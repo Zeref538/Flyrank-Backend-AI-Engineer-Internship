@@ -85,9 +85,17 @@ def triage(body: TriageIn):
     return result
 
 
-@app.get("/health", summary="Say whether the server is alive")
+@app.get("/health", summary="Say whether the server and its database can answer")
 def health():
-    return {"status": "ok"}
+    """A load balancer calls this every few seconds and stops sending users to
+    a server that fails it. "ok" without asking the database would keep traffic
+    flowing to a server whose every real request is about to fail."""
+    try:
+        db.ping()
+    except Exception as exc:  # any driver error means the same thing here: no database
+        return JSONResponse({"status": "degraded", "db": "down",
+                             "error": type(exc).__name__}, status_code=503)
+    return {"status": "ok", "db": "ok"}
 
 
 @app.get("/tasks", summary="List every task")

@@ -21,7 +21,7 @@ c = TestClient(app)
 
 
 def test_crud():
-    assert c.get("/health").json() == {"status": "ok"}
+    assert c.get("/health").json() == {"status": "ok", "db": "ok"}
     assert len(c.get("/tasks").json()) == 3
 
     made = c.post("/tasks", json={"title": "Buy milk"})
@@ -77,6 +77,37 @@ def test_survives_restart():
     assert '"Outlive the server"' in out.stdout, out.stdout
     c.delete(f"/tasks/{tid}")
 
+
+
+def test_health_is_503_when_the_database_cannot_answer():
+    import main
+
+    real = main.db.ping
+
+    def down():
+        raise ConnectionError("database unreachable")
+
+    main.db.ping = down
+    try:
+        r = c.get("/health")
+        assert r.status_code == 503 and r.json()["db"] == "down", r.json()
+    finally:
+        main.db.ping = real
+
+
+def test_both_storage_modules_offer_the_same_functions():
+    # main.py swaps db for db_postgres on one environment variable. That only
+    # works while both expose identical functions with identical signatures.
+    import inspect
+
+    import db as sqlite_db
+    import db_postgres
+
+    def api(mod):
+        return {name: str(inspect.signature(fn)) for name, fn in vars(mod).items()
+                if inspect.isfunction(fn) and fn.__module__ == mod.__name__ and not name.startswith("_")}
+
+    assert api(sqlite_db) == api(db_postgres), (api(sqlite_db), api(db_postgres))
 
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):

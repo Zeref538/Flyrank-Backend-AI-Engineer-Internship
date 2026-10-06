@@ -1,5 +1,12 @@
 import os
 
+from dotenv import load_dotenv
+
+# Read .env before anything looks at the environment. It never overrides a
+# variable that is already set, so inside docker compose the values compose
+# passes in win over the file.
+load_dotenv()
+
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -19,10 +26,11 @@ app = FastAPI(
     title="Task API",
     version="1.0",
     description="A to-do list you can create, read, update and delete over HTTP. "
-    "Storage is a plain Python list, so restarting the server resets it.",
+    "Storage is PostgreSQL when DATABASE_URL is set, otherwise a SQLite file. "
+    "Either way the tasks survive a restart.",
 )
 
-db.init()  # create tasks.db and its table on startup if they aren't there yet
+db.init()  # create the tasks table on startup if it isn't there, and seed it once
 
 
 @app.exception_handler(HTTPException)

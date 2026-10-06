@@ -1,0 +1,10 @@
+# COPY . . in the Dockerfile copies everything not listed here into the image.
+# .env holds real secrets: an image that contains it leaks them to anyone who
+# pulls it. Compose hands the container its settings at run time instead.
+.env
+tasks.db
+logs/
+__pycache__/
+*.pyc
+.venv/
+docs/

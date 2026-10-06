@@ -5,12 +5,12 @@ README, its own run command, its own tests.
 
 | Folder | What it is | Assignments | State |
 |---|---|---|---|
-| [task-api](task-api/) | A to-do API that stores tasks three different ways — a list in memory, then a SQLite file, then PostgreSQL in a container — behind routes that never change. Plus `POST /triage`, an LLM endpoint with validation, repair and a kill switch. | BE-01, BE-02, BE-04, BE-07 | CRUD and Postgres verified · Docker and the live model are not |
+| [task-api](task-api/) | A to-do API that stores tasks three different ways — a list in memory, then a SQLite file, then PostgreSQL in a container — behind routes that never change. Plus `POST /triage`, an LLM endpoint with validation, repair and a kill switch. | BE-01, BE-02, BE-04, BE-07 | CRUD, Postgres and the live model verified · Docker not yet run |
 | [polite-scraper](polite-scraper/) | Scrapes 60 books from a practice sandbox into checked JSON, slowly and with its name on every request. | BE-05 | Verified |
 | [background-job](background-job/) | An API that answers in 0.4 seconds and does 8 seconds of work elsewhere, with retries and a cron job. | BE-06 | Verified |
 | [pdf-report-generator](pdf-report-generator/) | 200 orders → one SQL query → an HTML page → a real 7-page PDF, served by link. | BE-08 | Verified |
 | [auth-api](auth-api/) | Sign up, log in, and a guard that stands in front of the protected routes. | BE-03 | **Verified** end to end against a live project |
-| [ai-decision-flow](ai-decision-flow/) | A flowchart you draw in the browser where every box is a yes/no question and the answer picks the arrow. | BE-09 | Execution verified · the model is a stub |
+| [ai-decision-flow](ai-decision-flow/) | A flowchart you draw in the browser where every box is a yes/no question and the answer picks the arrow. | BE-09 | **Verified** on a real model, through Inngest |
 
 ## Run the tests
 
@@ -27,28 +27,26 @@ cd auth-api             && python test_auth.py
 cd ai-decision-flow     && npm install && npm test
 ```
 
-61 checks with no setup, plus 5 more when a Postgres is available. All passing
-as of 20 Sep 2026.
+58 tests with no setup (counted from the test functions), plus 5 more when a
+Postgres is available. All passing as of 6 Oct 2026.
 
 ## What is honestly not finished
 
-Three things need an account or an install I do not have, and every affected
-README says so at the top rather than quietly implying otherwise:
+One thing, and it needs an install I cannot do from here:
 
-- **Docker (BE-04)** — the *Postgres code* is verified: every function ran
+- **Docker (BE-04).** The *Postgres code* is verified: every function ran
   against a real PostgreSQL 17 server, full CRUD went through the API with the
   right codes, and a separate process read back what the first one wrote. What
-  has never run is `docker compose up` — the container networking, healthcheck
-  and volume are written and unproven, because Docker is not installed.
-- ~~**Supabase (BE-03)**~~ — done. Verified against a live project on
-  20 Sep 2026: signup, login, both protected routes, a tampered token, a wrong
-  password and logout all returned the right codes.
-- **The model (BE-07, BE-09)** — both run on a deterministic stub. The `6/8` eval
-  score in `task-api/README.md` is the **stub's** score. Switching to a real
-  model is three lines in `.env` and no code change.
+  has never run is `docker compose up`, because Docker needs WSL, which needs
+  admin rights and a reboot. `task-api/verify-docker.ps1` runs every checkpoint
+  in one command once it is installed.
 
-A stub score presented as a model score would be the real failure here. Marking
-it is the point.
+The two LLM projects run on a **real model** since 6 Oct 2026: `qwen3.5:4b`
+on Ollama, locally, no account and no cost. BE-07 scored 8/8 on its eval, and
+its README explains why the honest number is 4/4 (four cases are the prompt's
+own examples). BE-09 sent three messages through Inngest and each took the path
+I wrote down before running it. Both keep a keyword stub (`LLM_STUB=1`) so they
+run with nothing installed.
 
 ## One repo, not six
 

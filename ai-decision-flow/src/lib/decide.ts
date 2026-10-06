@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ReasoningEffort } from "openai/resources/shared";
 
 /**
  * Ask the model a yes/no question and get back exactly "YES" or "NO".
@@ -63,15 +64,25 @@ export async function decide(prompt: string, input: string): Promise<{ answer: "
 
   const client = new OpenAI({
     apiKey: process.env.LLM_API_KEY,
-    baseURL: process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1",
+    baseURL: process.env.LLM_BASE_URL || "http://localhost:11434/v1/",
+    // The SDK waits TEN MINUTES by default and retries twice on its own. Inngest
+    // already retries a failed step, so the SDK's retries would stack on top.
+    timeout: Number(process.env.LLM_TIMEOUT_MS || 30_000),
+    maxRetries: 0,
   });
+  // Reasoning models (qwen3.5 on Ollama) think before answering, and with
+  // max_tokens 4 the thinking eats the whole budget: the visible answer comes
+  // back empty. LLM_REASONING_EFFORT=none switches thinking off. Unset = not sent,
+  // because not every provider accepts the field.
+  const effort = process.env.LLM_REASONING_EFFORT as ReasoningEffort | undefined;
 
   let last = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await client.chat.completions.create({
-      model: process.env.LLM_MODEL || "llama-3.1-8b-instant",
+      model: process.env.LLM_MODEL || "qwen3.5:4b",
       temperature: 0,          // same question, same answer
       max_tokens: 4,           // it cannot ramble if it has no room to
+      ...(effort ? { reasoning_effort: effort } : {}),
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: `Question: ${prompt}\n\nText: ${input}` },
